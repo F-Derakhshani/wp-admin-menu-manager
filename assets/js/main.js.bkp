@@ -1,0 +1,207 @@
+(function($) {
+  $(document).ready(function() {
+    
+      sidebars = $('.wpamm-submenu-sortable');
+
+      // custom sidebars
+      sidebars.children('.widget').each( function() {
+        var $this = $(this);
+
+        wpWidgets.appendTitle( this );
+
+        if ( $this.find( 'p.widget-error' ).length ) {
+          $this.find( 'a.widget-action' ).trigger('click');
+        }
+      });
+
+      // Toggle disabled look from hidden submenus
+      $('.widget-content input[type="checkbox"]').change(function() {
+        var target = $(this).parent().parent().parent().parent().parent().find('.widget-title');
+        target.toggleClass('submenu-hidden');
+      });
+
+      sidebars.sortable({
+        placeholder: 'widget-placeholder',
+        items: '> .widget',
+        handle: '> .widget-top > .widget-title',
+        cursor: 'move',
+        distance: 2,
+        containment: 'document',
+        start: function( event, ui ) {
+          var height, $this = $(this),
+            $wrap = $this.parent(),
+            inside = ui.item.children('.widget-inside');
+
+          if ( inside.css('display') === 'block' ) {
+            inside.hide();
+            $(this).sortable('refreshPositions');
+          }
+
+          if ( ! $wrap.hasClass('closed') ) {
+            // Lock all open sidebars min-height when starting to drag.
+            // Prevents jumping when dragging a widget from an open sidebar to a closed sidebar below.
+            height = ui.item.hasClass('ui-draggable') ? $this.height() : 1 + $this.height();
+            $this.css( 'min-height', height + 'px' );
+          }
+        },
+
+        stop: function( event, ui ) {
+          var addNew, widgetNumber, $sidebar, $children, child, item,
+            $widget = ui.item,
+            id = the_id;
+
+          if ( $widget.hasClass('deleting') ) {
+            wpWidgets.save( $widget, 1, 0, 1 ); // delete widget
+            $widget.remove();
+            return;
+          }
+
+          addNew = $widget.find('input.add_new').val();
+          widgetNumber = $widget.find('input.multi_number').val();
+
+          $widget.attr( 'style', '' ).removeClass('ui-draggable');
+          the_id = '';
+
+          if ( addNew ) {
+            if ( 'multi' === addNew ) {
+              $widget.html(
+                $widget.html().replace( /<[^<>]+>/g, function( tag ) {
+                  return tag.replace( /__i__|%i%/g, widgetNumber );
+                })
+              );
+
+              $widget.attr( 'id', id.replace( '__i__', widgetNumber ) );
+              widgetNumber++;
+
+              $( 'div#' + id ).find( 'input.multi_number' ).val( widgetNumber );
+            } else if ( 'single' === addNew ) {
+              $widget.attr( 'id', 'new-' + id );
+              rem = 'div#' + id;
+            }
+
+            wpWidgets.save( $widget, 0, 0, 1 );
+            $widget.find('input.add_new').val('');
+            $( document ).trigger( 'widget-added', [ $widget ] );
+          }
+
+          $sidebar = $widget.parent();
+
+          if ( $sidebar.parent().hasClass('closed') ) {
+            $sidebar.parent().removeClass('closed');
+            $children = $sidebar.children('.widget');
+
+            // Make sure the dropped widget is at the top
+            if ( $children.length > 1 ) {
+              child = $children.get(0);
+              item = $widget.get(0);
+
+              if ( child.id && item.id && child.id !== item.id ) {
+                $( child ).before( $widget );
+              }
+            }
+          }
+
+          if ( addNew ) {
+            $widget.find( 'a.widget-action' ).trigger('click');
+          } else {
+            wpWidgets.saveOrder( $sidebar.attr('id') );
+          }
+        },
+
+        activate: function() {
+          $(this).parent().addClass( 'widget-hover' );
+        },
+
+        deactivate: function() {
+          // Remove all min-height added on "start"
+          $(this).css( 'min-height', '' ).parent().removeClass( 'widget-hover' );
+        },
+
+        receive: function( event, ui ) {
+          var $sender = $( ui.sender );
+
+          // Don't add more widgets to orphaned sidebars
+          if ( this.id.indexOf('orphaned_widgets') > -1 ) {
+            $sender.sortable('cancel');
+            return;
+          }
+
+          // If the last widget was moved out of an orphaned sidebar, close and remove it.
+          if ( $sender.attr('id').indexOf('orphaned_widgets') > -1 && ! $sender.children('.widget').length ) {
+            $sender.parents('.orphan-sidebar').slideUp( 400, function(){ $(this).remove(); } );
+          }
+        }
+      }).sortable('option', 'connectWith', '.wpamm-submenu-sortable');
+    
+  });
+})(jQuery); // Fully reference jQuery after this point.
+
+// Icons Fix
+(function($) {
+  $(document).ready(function() {
+    
+//    // Get iconless items
+//    var $items = $('.wpamm-item-wo-icon');
+//    
+//    // For each icon, we loop to get its "slug"
+//    $.each($items, function() {
+//      
+//      // We need to get the aprent element
+//      $item = $(this).parent().parent().parent().parent();
+//      var $slug = $item.find('.id-carrier').val();
+//      
+//      // Now we find the matching element on the menu
+//      var content = $('a[href="'+ $slug +'"]').find('.wp-menu-image');
+//      
+//    });
+    
+    // Shortcuts to send to the other block
+    var available = $('#sidebar-primary'),
+        disabled  = $('#sidebar-footer');
+    
+    // Move to disabled
+    $(document).on('click', '.wpamm-widget-send-to-disabled', function(e) {
+      e.preventDefault();
+      
+      // Get Widget
+      var widget = $(this).parent().parent().parent().parent().parent().parent();
+      // console.log(widget);
+      // Adds to the other sidebars
+      widget.removeClass('open').children('.widget-inside').hide();
+      disabled.append(widget);
+    });
+    
+    // Move to available
+    $(document).on('click', '.wpamm-widget-send-to-available', function(e) {
+      e.preventDefault();
+      
+      // Get Widget
+      var widget = $(this).parent().parent().parent().parent().parent().parent();
+      // console.log(widget);
+      // Adds to the other sidebars
+      widget.removeClass('open').children('.widget-inside').hide();
+      sidebars.sortable('refreshPositions');
+      available.append(widget);
+    });
+    
+    /**
+     * Create new separator
+     */
+    $(document).on('click', '.wpamm-action-add-separator', function(e) {
+      e.preventDefault();
+      
+      // Id
+      var id = $('#sidebar-primary .widget').length + 1;
+      
+      // New Separator
+      var separator = '<div class="widget"><div class="widget-top"><div class="widget-title-action"></div><div class="widget-title ui-sortable-handle"><h4 style="background-color: #fefefe !important;"><span data-wpamm-icon="dashicons-editor-insertmore" class="dashicons dashicons-editor-insertmore" style=""></span><span class="wp-admin-menu-title">Separator</span></h4></div></div><input class="order-carrier" type="hidden" name="menu[menu-'+ id +'][order]" value="'+ id +'"><input class="id-carrier" type="hidden" name="menu[menu-'+ id +'][id]" value="separator'+ id +'"><input class="separator" type="hidden" name="menu[menu-'+ id +'][separator]" value="1"></div>';
+      
+      // Add to primaru sidebars
+      $('#sidebar-primary .sidebar-description').after(separator);
+      sidebars.sortable('refreshPositions');
+    });
+    
+    
+    
+  });
+})(jQuery); // Fully reference jQuery after this point.
